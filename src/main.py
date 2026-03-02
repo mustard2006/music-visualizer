@@ -1,4 +1,4 @@
-from curses import meta
+import numpy as np
 import subprocess
 import json
 
@@ -30,11 +30,32 @@ def get_metadata(file):
     return metadata
 
 
+def decode_to_pcm(file):
+    cmd = [
+        "ffmpeg",
+        "-i", file,
+        "-f", "f32le",
+        "-ac", "1",
+        "-ar", "44100",
+        "-"
+    ]
+
+    process = subprocess.Popen(cmd, stdout=subprocess.PIPE)
+    audio_bytes = process.stdout.read()
+
+    audio = np.frombuffer(audio_bytes, dtype=np.float32)
+
+    return audio
+
+
 def main():
     file_path = "./audio_samples/Deftones_My_Own_Summer.wav"
-    meta = get_metadata(file_path)
+    #meta = get_metadata(file_path)
 
-    print(meta)
+    #print(meta)
+
+    file_pcm = decode_to_pcm(file_path)
+    print(file_pcm)
 
 if __name__ == "__main__":
     main()
