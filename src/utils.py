@@ -47,17 +47,3 @@ def get_metadata(file):
     }
 
     return metadata
-
-
-
-# FFT frame settings
-FRAME_LEN = 2048   # samples per window
-HOP_LEN = 512     # step between windows
-
-# Frequency bands in Hz (for 44.1 kHz, Nyquist = 22050)
-BASS = (20, 250)
-MID = (250, 4000)
-HIGH = (4000, 22050)
-
-
-#def beat_and_onset_times(audio: np.ndarray, sr: int):
