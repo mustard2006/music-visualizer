@@ -1,0 +1,6 @@
+numpy
+librosa
+soundfile
+matplotlib
+miniaudio
+pyglet

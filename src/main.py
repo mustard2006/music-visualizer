@@ -1,22 +1,22 @@
-from analyzer import analyze_track, get_frame_index_for_time, is_beat_near
 from utils import decode_to_pcm, get_metadata
+from analyzer import analyze_track
+from visualizer import run as run_visualizer
 
-SR = 44100
+FILE = "./audio_samples/Deftones_My_Own_Summer.wav"
+
 
 def main():
-    # get the file
-    file_path = "./audio_samples/Deftones_My_Own_Summer.wav"
-
-    # decode to pcm
-    pcm = decode_to_pcm(file_path)
+    pcm = decode_to_pcm(FILE)
     print("PCM shape:", pcm.shape, "samples")
 
-    # get metadata (mostly optional)
-    metadata = get_metadata(file_path)
+    metadata = get_metadata(FILE)
     print("Metadata:", metadata)
 
-    #
-    
+    result = analyze_track(pcm)
+    print(f"Frames: {len(result['times'])}, beats: {len(result['beats'])}")
+
+    run_visualizer(FILE)
+
 
 if __name__ == "__main__":
     main()
