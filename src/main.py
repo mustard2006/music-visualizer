@@ -18,7 +18,7 @@ def main():
         result = analyze_track(pcm)
         print(f"Frames: {len(result['times'])}, beats: {len(result['beats'])}")
 
-        run_visualizer(FILE)
+        run_visualizer(FILE, result)
     else:
         print("File not found '",FILE,"'")
 

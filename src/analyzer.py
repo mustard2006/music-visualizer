@@ -7,7 +7,7 @@ BASS = (20, 250)
 MID = (250, 4000)
 TREBLE = (4000, 22050)
 
-NUM_BARS = 64
+NUM_BARS = 256
 
 def analyze_track(pcm: np.ndarray, sr: int = 44100) -> dict:
     n_fft = frame_len
@@ -15,44 +15,25 @@ def analyze_track(pcm: np.ndarray, sr: int = 44100) -> dict:
     freqs = np.fft.rfftfreq(n_fft, 1.0/sr)
     nyquist = sr/2
 
-    # Frame audio + FFT + Band energies
     n_frames = 1 + (len(pcm) - n_fft) // hop
-    bass = np.zeros(n_frames)
-    mid = np.zeros(n_frames)
-    treble = np.zeros(n_frames)
-    # to not get any loud bumps at the beginning or end of each frame that is procesed
     window = np.hanning(n_fft)
 
-    spectrum = np.zeros((n_frames, NUM_BARS))
+    # all frames at once: shape (n_frames, n_fft)
+    frames = np.lib.stride_tricks.sliding_window_view(pcm, n_fft)[::hop][:n_frames]
+    frames = frames * window
 
-    # loop though frames
-    for i in range(n_frames):
-        start = i*hop # 0*hop, 1*hop, ...; starting position for new frame
-        frame = pcm[start : start+n_fft] # get the pcm values for the frame [start to start+2048]
+    # FFT all frames in one call: shape (n_frames, n_fft//2+1)
+    spec_all = np.abs(np.fft.rfft(frames, axis=-1))
 
-        if len(frame) < n_fft: # if frame length is less than n_fft(default frame length) happens at the end, break
-            break
+    # bin into NUM_BARS by reshape + mean — no Python loop
+    bins_per_bar = spec_all.shape[1] // NUM_BARS
+    usable = bins_per_bar * NUM_BARS
+    spectrum = spec_all[:, :usable].reshape(n_frames, NUM_BARS, bins_per_bar).mean(axis=-1)
 
-        # avoids sharp jumps at frame borders
-        frame = frame * window
-
-        # compute the magnitude of the FFT for the current windowed frame,
-        # that gives amplitude for each frequency bin in this frame.
-        spec = np.abs(np.fft.rfft(frame))
-
-        # linear split — bass bars get way more energy than treble ones,
-        # so the first ~1/3 of bars move a lot more. that's just how music energy is distributed currently
-        bins_per_bar = len(spec) // NUM_BARS
-
-        for b in range(NUM_BARS):
-            start_bin = b * bins_per_bar
-            end_bin = start_bin + bins_per_bar
-            spectrum[i, b] = np.mean(spec[start_bin:end_bin])
-
-        bass[i] = np.sum(spec[(freqs >= BASS[0]) & (freqs < BASS[1])])
-        mid[i] = np.sum(spec[(freqs >= MID[0]) & (freqs < MID[1])])
-        # The upper bound of treble is capped by the nyquist frequency (half the sample rate) since thats the max FFT can resolve
-        treble[i] = np.sum(spec[(freqs >= TREBLE[0]) & (freqs < min(TREBLE[1], nyquist))])
+    # band energies — vectorized across all frames
+    bass = np.sum(spec_all[:, (freqs >= BASS[0]) & (freqs < BASS[1])], axis=1)
+    mid = np.sum(spec_all[:, (freqs >= MID[0]) & (freqs < MID[1])], axis=1)
+    treble = np.sum(spec_all[:, (freqs >= TREBLE[0]) & (freqs < min(TREBLE[1], nyquist))], axis=1)
 
         
     # normalize to [0, 1] so the visualizer doesn't need to care about absolute amplitudes

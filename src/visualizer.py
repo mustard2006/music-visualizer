@@ -6,13 +6,10 @@ import miniaudio
 import pyglet
 from pyglet import shapes
 
-from utils import decode_to_pcm
-from analyzer import analyze_track, get_frame_index_for_time
+from analyzer import get_frame_index_for_time
 
 WIDTH, HEIGHT = 1200, 600
-
-NUM_BARS = 64
-BAR_WIDTH = (WIDTH // NUM_BARS)
+NUM_BARS = 256
 MARGIN = 40
 
 
@@ -28,11 +25,7 @@ def bar_color(i):
     return _lerp((50, 210, 80), (255, 60, 30), (t - 0.5) * 2)
 
 
-def run(file_path: str):
-    # load the song and analyze it (bass, mid, treble, spectrum, beats)
-    print("Loading and analyzing...")
-    pcm = decode_to_pcm(file_path)
-    result = analyze_track(pcm)
+def run(file_path: str, result: dict):
     times = result["times"]
     spectrum = result["spectrum"]
     duration = float(times[-1])
@@ -61,11 +54,11 @@ def run(file_path: str):
             device.stop()
             device = None
 
-    # create window and bars
-    window = pyglet.window.Window(WIDTH, HEIGHT, "Music Visualizer")
+    window = pyglet.window.Window(WIDTH, HEIGHT, "Music Visualizer — Press SPACE to play")
 
+    batch = pyglet.graphics.Batch()
     bars = [
-        shapes.Rectangle(MARGIN + i * BAR_WIDTH, MARGIN, BAR_WIDTH - 2, 10, color=bar_color(i))
+        shapes.Rectangle(0, MARGIN, 1, 10, color=bar_color(i), batch=batch)
         for i in range(NUM_BARS)
     ]
 
@@ -74,42 +67,38 @@ def run(file_path: str):
         if symbol == pyglet.window.key.SPACE:
             if not playing:
                 start_playback()
+                window.set_caption("Music Visualizer")
             else:
                 stop_playback()
+                window.set_caption("Music Visualizer — Press SPACE to play")
         elif symbol == pyglet.window.key.ESCAPE:
             window.close()
 
     @window.event
     def on_draw():
         window.clear()
-        t = time.time() - start_time if playing else -1.0
 
-        if not playing or t < 0:
-            pyglet.text.Label(
-                "Press SPACE to play",
-                font_size=24,
-                x=WIDTH // 2,
-                y=HEIGHT // 2,
-                anchor_x="center",
-                anchor_y="center",
-            ).draw()
-            return
-
-        t = min(t, duration)
-
-        frame_idx = get_frame_index_for_time(t, times)
-        frame = spectrum[frame_idx]
-
+        bar_w = (window.width - 2 * MARGIN) / NUM_BARS
+        bar_h = window.height - 2 * MARGIN
         half = NUM_BARS // 2
+
+        if playing:
+            t = min(time.time() - start_time, duration)
+            frame_idx = get_frame_index_for_time(t, times)
+            frame = spectrum[frame_idx]
+        else:
+            frame = [0.05] * NUM_BARS
+
         for i, bar in enumerate(bars):
             freq_idx = (half - 1 - i) if i < half else (i - half)
             prev_height = getattr(bar, "prev_height", bar.height)
-            target = 20 + frame[freq_idx] * 400
-            # ease toward target — avoids the bars snapping too hard between frames
+            target = 20 + frame[freq_idx] * bar_h
             bar.height = prev_height * 0.7 + target * 0.3
             bar.prev_height = bar.height
+            bar.x = MARGIN + i * bar_w
+            bar.width = max(1, bar_w - 1)
 
-        for bar in bars:
-            bar.draw()
+        batch.draw()
 
+    pyglet.clock.schedule_interval(lambda dt: window.dispatch_event('on_draw'), 1/60)
     pyglet.app.run()
